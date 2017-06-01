@@ -1,4 +1,4 @@
-realLambdaPunter
+@realLambdaPunter
 ===
 
 ```haskell
@@ -70,7 +70,7 @@ data Move = Move
 $(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''Move)
 ```
 
-Running punters
+Running punters over a handle
 ---
 
 ```haskell
