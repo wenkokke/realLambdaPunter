@@ -66,7 +66,9 @@ data Move = Move
   , moveSource :: NodeId
   , moveTarget :: NodeId
   }
+```
 
+```haskell
 $(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''Move)
 ```
 
