@@ -1,3 +1,6 @@
+realLambdaPunter
+===
+
 ```haskell
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -18,8 +21,8 @@ import LambdaPunter.TH (dropFirstWord)
 import System.IO
 ```
 
-Graphs
-------
+Representing the game graph
+---
 
 ```haskell
 data Graph = Graph
@@ -45,11 +48,8 @@ $(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''Edge)
 $(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''Graph)
 ```
 
-Punters
--------
-
-Definition
-==========
+Representing punters
+---
 
 ```haskell
 type PunterId = Int
@@ -57,8 +57,8 @@ type PunterId = Int
 type Punter = Graph -> PunterId -> Map PunterId [Edge] -> Edge
 ```
 
-Moves
-=====
+Representing moves
+---
 
 ```haskell
 data Move = Move
@@ -71,7 +71,7 @@ $(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''Move)
 ```
 
 Running punters
-===============
+---
 
 ```haskell
 runPunter :: Punter -> Handle -> IO ()
