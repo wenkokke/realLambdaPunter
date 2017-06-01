@@ -6,27 +6,23 @@ import Network.Socket
 import System.IO
 import System.IO.Unsafe
 
--- |Run two players on `127.0.0.1:9999`
 main :: IO ()
 main = do
   lpHost <- inet_addr "127.0.0.1"
   let lpPort = 9999
   let lpAddr = SockAddrInet lpPort lpHost
-  forkChild $ connectPlayer undefined lpAddr 
-  forkChild $ connectPlayer undefined lpAddr
+  forkChild $ connectPunter undefined lpAddr 
+  forkChild $ connectPunter undefined lpAddr
   waitForChildren
 
--- |Run a player on a socket
-connectPlayer :: Player -> SockAddr -> IO ()
-connectPlayer player addr = do
+connectPunter :: Punter -> SockAddr -> IO ()
+connectPunter punter addr = do
   sock <- socket AF_INET Stream 0
   connect sock addr
   hdl <- socketToHandle sock ReadWriteMode
   hSetBuffering hdl NoBuffering
-  runPlayer player hdl
+  runPunter punter hdl
   hClose hdl
-
--- * Concurrent players
 
 children :: MVar [MVar ()]
 children = unsafePerformIO (newMVar [])
