@@ -1,0 +1,38 @@
+name:                lambda-punter-ai
+version:             0.1.0.0
+-- synopsis:
+-- description:
+homepage:            https://github.com/pepijnkokke/lambda-punter-ai#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Pepijn Kokke
+maintainer:          pepijn.kokke@gmail.com
+copyright:           (c) 2017 Pepijn Kokke
+category:            Web
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     LambdaPunter
+  other-modules:       LambdaPunter.TH
+  build-depends:       aeson
+                     , base
+                     , bytestring
+                     , containers
+                     , utf8-string
+  default-language:    Haskell2010
+
+executable lambda-punter-ai-exe
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , lambda-punter-ai
+                     , network
+  default-language:    Haskell2010
+
+source-repository head
+  type:     git
+  location: https://github.com/pepijnkokke/lambda-punter-ai
