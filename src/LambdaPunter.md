@@ -117,7 +117,7 @@ decodeGraph :: ByteString -> Graph
 decodeGraph = decodeMsg
 
 decodeMove :: ByteString -> Maybe Move
-decodeMove "?" = Nothing
+decodeMove "?" = Nothing -- this probably doesn't work
 decodeMove msg = decodeMsg msg
 ```
 
