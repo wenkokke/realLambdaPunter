@@ -37,15 +37,31 @@ data Graph = Graph
 
 newtype Node = Node
   { nodeId :: NodeId
-  } deriving (Eq,Show)
+  } deriving (Eq)
 
 data Edge = Edge
   { edgeSource :: NodeId
   , edgeTarget :: NodeId
-  } deriving (Eq,Show)
+  }
 
 type NodeId = Int
 ```
+
+```haskell
+instance Eq Edge where
+  (Edge x1 y1) == (Edge x2 y2) =
+    (x1 == x2 && y1 == y2) ||
+    (y1 == x2 && x1 == y2)
+```
+
+```haskell
+instance Show Node where
+  show (Node id) = show id
+
+instance Show Edge where
+  show (Edge x y) = show (x,y)
+```
+
 
 ```haskell
 $(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''Node)
@@ -66,6 +82,11 @@ Representing moves
 ---
 
 ```haskell
+data Msg
+  = Query
+  | Info Move
+  | End
+
 data Move = Move
   { movePunter :: PunterId
   , moveSource :: NodeId
@@ -87,31 +108,31 @@ runPunter punter hdl = do
   msg <- BS.hGetLine hdl
   let
     punterId :: Int
-    punterId = decodePunterId (stripLabel "hello punter:" msg)
+    punterId = decodePunterId msg
 
   -- receive graph
   msg <- BS.hGetLine hdl
   let
     graph :: Graph
-    graph = decodeMsg (stripLabel "graph:" msg)
+    graph = decodeGraph msg
 
   -- loop
   let
     punterLoop :: Map PunterId [Edge] -> Handle -> IO ()
     punterLoop game hdl = do
       msg <- BS.hGetLine hdl
-      putStrLn $ show punterId <> ": " <> BS.unpack msg
-      case decodeMove (stripLabel "move:" msg) of
-        Just move -> do
-          let edge = Edge (moveSource move) (moveTarget move)
-          let game' = M.adjust (edge:) (movePunter move) game
-          punterLoop game' hdl
-        Nothing   -> do
+      case decodeMsg msg of
+        Query     -> do
           edge <- punter graph punterId game
           let move = Move punterId (edgeSource edge) (edgeTarget edge)
-          let game' = M.adjust (edge:) punterId game
+          let game' = claimEdge punterId edge game
           T.hPutStrLn hdl (encodeToLazyText move)
           punterLoop game' hdl
+        Info move -> do
+          let edge = Edge (moveSource move) (moveTarget move)
+          let game' = claimEdge (movePunter move) edge game
+          punterLoop game' hdl
+        End       -> putStrLn "Done"
 
   Control.Exception.catch
     (punterLoop M.empty hdl)
@@ -119,20 +140,28 @@ runPunter punter hdl = do
 ```
 
 ```haskell
-decodePunterId :: ByteString -> PunterId
-decodePunterId = read . BS.unpack
-
-decodeGraph :: ByteString -> Graph
-decodeGraph = decodeMsg
-
-decodeMove :: ByteString -> Maybe Move
-decodeMove "?" = Nothing
-decodeMove msg = traceShow (BS.unpack msg) $ decodeMsg msg
+claimEdge :: PunterId -> Edge -> Map PunterId [Edge] -> Map PunterId [Edge]
+claimEdge punterId edge game
+  | M.member punterId game = M.adjust (edge:) punterId game
+  | otherwise              = M.insert punterId [edge] game
 ```
 
 ```haskell
-decodeMsg :: FromJSON a => ByteString -> a
-decodeMsg msg =
+decodePunterId :: ByteString -> PunterId
+decodePunterId = read . BS.unpack . stripLabel "hello punter:"
+
+decodeGraph :: ByteString -> Graph
+decodeGraph = decodeJSON . stripLabel "graph:"
+
+decodeMsg :: ByteString -> Msg
+decodeMsg "end"    = End
+decodeMsg "move:?" = Query
+decodeMsg msg      = Info (decodeJSON (stripLabel "move:" msg))
+```
+
+```haskell
+decodeJSON :: FromJSON a => ByteString -> a
+decodeJSON msg =
   case decodeStrict msg of
     Just val -> val
     Nothing  -> throw $ CannotDecode msg
