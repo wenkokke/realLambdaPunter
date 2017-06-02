@@ -4,15 +4,16 @@
 ```haskell
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
-module LambdaPunter where
+module LambdaPunter.Base where
 ```
 
 ```haskell
+import Control.Exception
 import Data.Aeson
 import Data.Aeson.TH
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BSL
+import qualified Data.ByteString.Lazy.Char8 as BSL -- not UTF8
 import qualified Data.ByteString.UTF8 as BS
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -54,7 +55,7 @@ Representing punters
 ```haskell
 type PunterId = Int
 
-type Punter = Graph -> PunterId -> Map PunterId [Edge] -> Edge
+type Punter = Graph -> PunterId -> Map PunterId [Edge] -> IO Edge
 ```
 
 Representing moves
@@ -95,18 +96,21 @@ runPunter punter hdl = do
     punterLoop :: Map PunterId [Edge] -> Handle -> IO ()
     punterLoop game hdl = do
       msg <- BS.hGetLine hdl
+      putStrLn $ show punterId <> ": " <> BS.toString msg
       case decodeMove msg of
         Just move -> do
-          let edge  = Edge (moveSource move) (moveTarget move)
+          let edge = Edge (moveSource move) (moveTarget move)
           let game' = M.adjust (edge:) (movePunter move) game
           punterLoop game' hdl
         Nothing   -> do
-          let edge = punter graph punterId game
+          edge <- punter graph punterId game
           let move = Move punterId (edgeSource edge) (edgeTarget edge)
-          BSL.hPutStr hdl (encode move)
+          BSL.hPutStrLn hdl (encode move)
           punterLoop game hdl
 
-  punterLoop M.empty hdl
+  Control.Exception.catch
+    (punterLoop M.empty hdl)
+    (\e -> putStrLn $ show punterId <> ": " <> show (e :: IOException))
 ```
 
 ```haskell

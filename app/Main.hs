@@ -1,6 +1,7 @@
 module Main where
 
 import Control.Concurrent
+import Control.Exception
 import LambdaPunter
 import Network.Socket
 import System.IO
@@ -11,8 +12,8 @@ main = do
   lpHost <- inet_addr "127.0.0.1"
   let lpPort = 9999
   let lpAddr = SockAddrInet lpPort lpHost
-  forkChild $ connectPunter undefined lpAddr 
-  forkChild $ connectPunter undefined lpAddr
+  forkChild $ connectPunter randy lpAddr
+  forkChild $ connectPunter randy lpAddr
   waitForChildren
 
 connectPunter :: Punter -> SockAddr -> IO ()
@@ -21,7 +22,9 @@ connectPunter punter addr = do
   connect sock addr
   hdl <- socketToHandle sock ReadWriteMode
   hSetBuffering hdl NoBuffering
-  runPunter punter hdl
+  Control.Exception.catch
+    (runPunter punter hdl)
+    (\e -> print (e :: IOException))
   hClose hdl
 
 children :: MVar [MVar ()]

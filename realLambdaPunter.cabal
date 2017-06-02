@@ -17,11 +17,14 @@ library
   hs-source-dirs:      src
   exposed-modules:     LambdaPunter
   other-modules:       LambdaPunter.TH
+                     , LambdaPunter.Base
+                     , LambdaPunter.Randy
   ghc-options:         -pgmL markdown-unlit
   build-depends:       aeson
                      , base
                      , bytestring
                      , containers
+                     , random
                      , utf8-string
   default-language:    Haskell2010
 
