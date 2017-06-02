@@ -21,7 +21,6 @@ connectPunter punter addr = do
   sock <- socket AF_INET Stream 0
   connect sock addr
   hdl <- socketToHandle sock ReadWriteMode
-  hSetBuffering hdl NoBuffering
   Control.Exception.catch
     (runPunter punter hdl)
     (\e -> print (e :: IOException))

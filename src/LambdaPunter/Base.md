@@ -11,15 +11,19 @@ module LambdaPunter.Base where
 import Control.Exception
 import Data.Aeson
 import Data.Aeson.TH
+import Data.Aeson.Text
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy.Char8 as BSL -- not UTF8
-import qualified Data.ByteString.UTF8 as BS
+import qualified Data.ByteString.Char8 as BS
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Monoid ((<>))
+import Data.Text.Lazy (Text)
+import qualified Data.Text.Lazy as T
+import qualified Data.Text.Lazy.IO as T
 import LambdaPunter.TH (dropFirstWord)
 import System.IO
+
+import Debug.Trace (traceShow)
 ```
 
 Representing the game graph
@@ -96,8 +100,8 @@ runPunter punter hdl = do
     punterLoop :: Map PunterId [Edge] -> Handle -> IO ()
     punterLoop game hdl = do
       msg <- BS.hGetLine hdl
-      putStrLn $ show punterId <> ": " <> BS.toString msg
-      case decodeMove msg of
+      putStrLn $ show punterId <> ": " <> BS.unpack msg
+      case decodeMove (stripLabel "move:" msg) of
         Just move -> do
           let edge = Edge (moveSource move) (moveTarget move)
           let game' = M.adjust (edge:) (movePunter move) game
@@ -105,24 +109,25 @@ runPunter punter hdl = do
         Nothing   -> do
           edge <- punter graph punterId game
           let move = Move punterId (edgeSource edge) (edgeTarget edge)
-          BSL.hPutStrLn hdl (encode move)
-          punterLoop game hdl
+          let game' = M.adjust (edge:) punterId game
+          T.hPutStrLn hdl (encodeToLazyText move)
+          punterLoop game' hdl
 
   Control.Exception.catch
     (punterLoop M.empty hdl)
-    (\e -> putStrLn $ show punterId <> ": " <> show (e :: IOException))
+    (\e -> putStrLn $ show punterId <> ": " <> show (e :: PunterException))
 ```
 
 ```haskell
 decodePunterId :: ByteString -> PunterId
-decodePunterId = read . BS.toString
+decodePunterId = read . BS.unpack
 
 decodeGraph :: ByteString -> Graph
 decodeGraph = decodeMsg
 
 decodeMove :: ByteString -> Maybe Move
-decodeMove "?" = Nothing -- this probably doesn't work
-decodeMove msg = decodeMsg msg
+decodeMove "?" = Nothing
+decodeMove msg = traceShow (BS.unpack msg) $ decodeMsg msg
 ```
 
 ```haskell
@@ -130,13 +135,22 @@ decodeMsg :: FromJSON a => ByteString -> a
 decodeMsg msg =
   case decodeStrict msg of
     Just val -> val
-    Nothing  -> error $ "cannot decode message \"" <> BS.toString msg <> "\""
+    Nothing  -> throw $ CannotDecode msg
 ```
 
 ```haskell
 stripLabel :: String -> ByteString -> ByteString
 stripLabel lbl msg =
-  case BS.stripPrefix (BS.fromString lbl) msg of
+  case BS.stripPrefix (BS.pack lbl) msg of
     Just val -> val
-    Nothing  -> error $ "expected message with label \"" <> lbl <> "\""
+    Nothing  -> throw $ ExpectedLabel lbl msg
+```
+
+```haskell
+data PunterException
+  = CannotDecode ByteString
+  | ExpectedLabel String ByteString
+  deriving (Eq,Show)
+
+instance Exception PunterException
 ```
