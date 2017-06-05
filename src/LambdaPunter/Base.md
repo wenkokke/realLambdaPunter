@@ -22,8 +22,6 @@ import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.IO as T
 import LambdaPunter.TH (dropFirstWord)
 import System.IO
-
-import Debug.Trace (traceShow)
 ```
 
 Representing the game graph
