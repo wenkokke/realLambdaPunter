@@ -4,7 +4,12 @@
 ```haskell
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
-module LambdaPunter.Base where
+module LambdaPunter.Base
+     ( runPunter
+     , module X
+     , Msg(..)
+     , PunterException(..)
+     ) where
 ```
 
 ```haskell
@@ -21,62 +26,14 @@ import Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.IO as T
 import LambdaPunter.TH (dropFirstWord)
+import LambdaPunter.Graph  as X
+import LambdaPunter.Punter as X
+import LambdaPunter.Move   as X
+import LambdaPunter.Score  as X
 import System.IO
 ```
 
-Representing the game graph
----
-
-```haskell
-data Graph = Graph
-  { graphNodes :: [Node]
-  , graphEdges :: [Edge]
-  } deriving (Eq,Show)
-
-newtype Node = Node
-  { nodeId :: NodeId
-  } deriving (Eq)
-
-data Edge = Edge
-  { edgeSource :: NodeId
-  , edgeTarget :: NodeId
-  }
-
-type NodeId = Int
-```
-
-```haskell
-instance Eq Edge where
-  (Edge x1 y1) == (Edge x2 y2) =
-    (x1 == x2 && y1 == y2) ||
-    (y1 == x2 && x1 == y2)
-```
-
-```haskell
-instance Show Node where
-  show (Node id) = show id
-
-instance Show Edge where
-  show (Edge x y) = show (x,y)
-```
-
-
-```haskell
-$(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''Node)
-$(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''Edge)
-$(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''Graph)
-```
-
-Representing punters
----
-
-```haskell
-type PunterId = Int
-
-type Punter = Graph -> PunterId -> Map PunterId [Edge] -> IO Edge
-```
-
-Representing moves
+Representing messages
 ---
 
 ```haskell
@@ -84,16 +41,6 @@ data Msg
   = Query
   | Info Move
   | End
-
-data Move = Move
-  { movePunter :: PunterId
-  , moveSource :: NodeId
-  , moveTarget :: NodeId
-  }
-```
-
-```haskell
-$(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''Move)
 ```
 
 Running punters over a handle

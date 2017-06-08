@@ -17,6 +17,10 @@ library
   hs-source-dirs:      src
   exposed-modules:     LambdaPunter
   other-modules:       LambdaPunter.TH
+                     , LambdaPunter.Graph
+                     , LambdaPunter.Punter
+                     , LambdaPunter.Move
+                     , LambdaPunter.Score
                      , LambdaPunter.Base
                      , LambdaPunter.Randy
   ghc-options:         -pgmL markdown-unlit
@@ -24,6 +28,7 @@ library
                      , base
                      , bytestring
                      , containers
+                     , fgl
                      , random
                      , text
   default-language:    Haskell2010
