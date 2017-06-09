@@ -5,8 +5,7 @@ module LambdaPunter.Randy where
 ```haskell
 import LambdaPunter.Base
 import Data.List ((\\))
-import Data.Map (Map)
-import qualified Data.Map as M
+import qualified Data.IntMap as M
 import System.Random (randomRIO)
 ```
 
@@ -16,7 +15,7 @@ randy graph punterId game = randomElem $ available graph game
 ```
 
 ```haskell
-available :: Graph -> Map PunterId [Edge] -> [Edge]
+available :: Graph -> Game -> [Edge]
 available graph game = graphEdges graph \\ concat (M.elems game)
 ```
 

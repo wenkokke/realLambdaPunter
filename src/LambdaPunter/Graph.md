@@ -1,4 +1,5 @@
 ```haskell
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 module LambdaPunter.Graph where
@@ -16,6 +17,7 @@ Representing the game graph
 data Graph = Graph
   { graphNodes :: [Node]
   , graphEdges :: [Edge]
+  , graphMines :: [NodeId]
   } deriving (Eq,Show)
 
 newtype Node = Node
@@ -32,17 +34,17 @@ type NodeId = Int
 
 ```haskell
 instance Eq Edge where
-  (Edge x1 y1) == (Edge x2 y2) =
-    (x1 == x2 && y1 == y2) ||
-    (y1 == x2 && x1 == y2)
+  e1 == e2 =
+    (edgeSource e1 == edgeSource e2 && edgeTarget e1 == edgeTarget e2) ||
+    (edgeSource e1 == edgeTarget e2 && edgeTarget e1 == edgeSource e2)
 ```
 
 ```haskell
 instance Show Node where
-  show (Node id) = show id
+  show Node{..} = show nodeId
 
 instance Show Edge where
-  show (Edge x y) = show (x,y)
+  show Edge{..} = show (edgeSource,edgeTarget)
 ```
 
 ```haskell

@@ -18,8 +18,6 @@ library
   exposed-modules:     LambdaPunter
   other-modules:       LambdaPunter.TH
                      , LambdaPunter.Graph
-                     , LambdaPunter.Punter
-                     , LambdaPunter.Move
                      , LambdaPunter.Score
                      , LambdaPunter.Base
                      , LambdaPunter.Randy

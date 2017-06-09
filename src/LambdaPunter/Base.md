@@ -5,11 +5,15 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 module LambdaPunter.Base
-     ( runPunter
-     , module X
-     , Msg(..)
-     , PunterException(..)
-     ) where
+  (Game
+  ,PunterId
+  ,Punter
+  ,Move(..)
+  ,Msg(..)
+  ,PunterException(..)
+  ,runPunter
+  ,module X
+  ) where
 ```
 
 ```haskell
@@ -19,18 +23,53 @@ import Data.Aeson.TH
 import Data.Aeson.Text
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BS
-import Data.Map (Map)
-import qualified Data.Map as M
+import qualified Data.IntMap as M
 import Data.Monoid ((<>))
 import Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.IO as T
 import LambdaPunter.TH (dropFirstWord)
-import LambdaPunter.Graph  as X
-import LambdaPunter.Punter as X
-import LambdaPunter.Move   as X
-import LambdaPunter.Score  as X
+import LambdaPunter.Graph as X
+import LambdaPunter.Score as X
 import System.IO
+```
+
+```haskell
+import qualified Data.IntMap as M
+import LambdaPunter.Graph
+```
+
+Representing the game state
+---
+
+```haskell
+type Game = M.IntMap [Edge]
+```
+
+Representing punters
+---
+
+```haskell
+type PunterId = Int
+```
+
+```haskell
+type Punter = Graph -> PunterId -> Game -> IO Edge
+```
+
+Representing moves
+---
+
+```haskell
+data Move = Move
+  { movePunter :: PunterId
+  , moveSource :: NodeId
+  , moveTarget :: NodeId
+  }
+```
+
+```haskell
+$(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''Move)
 ```
 
 Representing messages
@@ -63,7 +102,7 @@ runPunter punter hdl = do
 
   -- loop
   let
-    punterLoop :: Map PunterId [Edge] -> Handle -> IO ()
+    punterLoop :: Game -> Handle -> IO ()
     punterLoop game hdl = do
       msg <- BS.hGetLine hdl
       case decodeMsg msg of
@@ -77,7 +116,9 @@ runPunter punter hdl = do
           let edge = Edge (moveSource move) (moveTarget move)
           let game' = claimEdge (movePunter move) edge game
           punterLoop game' hdl
-        End       -> putStrLn "Done"
+        End       -> do
+          let punterScore = score graph (game M.! punterId)
+          putStrLn $ show punterId <> ": scored " <> show punterScore <> " points"
 
   Control.Exception.catch
     (punterLoop M.empty hdl)
@@ -85,7 +126,7 @@ runPunter punter hdl = do
 ```
 
 ```haskell
-claimEdge :: PunterId -> Edge -> Map PunterId [Edge] -> Map PunterId [Edge]
+claimEdge :: PunterId -> Edge -> Game -> Game
 claimEdge punterId edge game
   | M.member punterId game = M.adjust (edge:) punterId game
   | otherwise              = M.insert punterId [edge] game
