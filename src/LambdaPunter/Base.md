@@ -18,6 +18,7 @@ module LambdaPunter.Base
 
 ```haskell
 import Control.Exception
+import Control.Monad (forM_)
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Aeson.Text
@@ -79,7 +80,7 @@ Representing messages
 data Msg
   = Query
   | Info Move
-  | End
+  | End Int
 ```
 
 Running punters over a handle
@@ -99,6 +100,8 @@ runPunter punter hdl = do
   let
     graph :: Graph
     graph = decodeGraph msg
+    scoringData :: ScoringData
+    scoringData = mkScoringData graph
 
   -- loop
   let
@@ -116,9 +119,11 @@ runPunter punter hdl = do
           let edge = Edge (moveSource move) (moveTarget move)
           let game' = claimEdge (movePunter move) edge game
           punterLoop game' hdl
-        End       -> do
-          let punterScore = score graph (game M.! punterId)
-          putStrLn $ show punterId <> ": scored " <> show punterScore <> " points"
+        End scoreRemote -> do
+          let scoreLocal = score graph scoringData (game M.! punterId)
+          assert (scoreRemote == scoreLocal) $
+            putStrLn $
+              "Punter "<> show punterId <>" scored "<> show scoreLocal <>" points"
 
   Control.Exception.catch
     (punterLoop M.empty hdl)
@@ -140,9 +145,10 @@ decodeGraph :: ByteString -> Graph
 decodeGraph = decodeJSON . stripLabel "graph:"
 
 decodeMsg :: ByteString -> Msg
-decodeMsg "end"    = End
 decodeMsg "move:?" = Query
-decodeMsg msg      = Info (decodeJSON (stripLabel "move:" msg))
+decodeMsg msg
+  | "move:"  `BS.isPrefixOf` msg = Info (decodeJSON (stripLabel "move:" msg))
+  | "score:" `BS.isPrefixOf` msg = End (decodeJSON (stripLabel "score:" msg))
 ```
 
 ```haskell
