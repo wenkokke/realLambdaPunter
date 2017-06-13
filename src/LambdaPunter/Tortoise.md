@@ -3,6 +3,10 @@
 module LambdaPunter.Tortoise where
 ```
 
+Tortoise is a punter AI which will compute the theoretically optimal move. It
+assumes that each punter wants to maximize their lead over the second-best
+punter, or minimize their distance to first place.
+
 ```haskell
 import Control.Monad (when)
 import Data.Function (on)
@@ -17,8 +21,11 @@ import LambdaPunter.Base
 import LambdaPunter.Randy (available)
 ```
 
+We build up a game tree, containing each possible move for each punter. This
+assumes that no punter will ever choose to "pass", because if we allow passing
+the tree becomes infinite and also why would you *ever* pass?
+
 ```haskell
--- assume: no punter will ever pass
 mkGameTree :: Graph -> PunterId -> Game -> Forest (PunterId, Edge)
 mkGameTree graph myId game = go game (turnCycle 0)
   where
@@ -32,6 +39,7 @@ mkGameTree graph myId game = go game (turnCycle 0)
         rest | punterId >= numPunters = turnCycle 0
              | otherwise              = turnCycle (punterId + 1)
 
+    -- assume: no punter will ever pass
     go :: Game -> [PunterId] -> Forest (PunterId, Edge)
     go game (punterId:rest) = do
       edge <- available graph game
@@ -39,6 +47,11 @@ mkGameTree graph myId game = go game (turnCycle 0)
       return . T.Node (punterId, edge) $
         if numEdges game' >= maxEdges then [] else go game' rest
 ```
+
+We then augment this tree with scores, computing the scores for each punter at
+each possible outcome. We then propagate these scores down the tree by, at every
+move, choosing the alternative which maximizes the score of the punter whose
+turn it is. We store the score of the punter we're running at each node.
 
 ```haskell
 type ScoreMap = M.IntMap Int
@@ -71,10 +84,11 @@ optimal graph scoringData myId game = map (fst . go game)
       in maximumBy (compare `on` currentPunterScore) (goForest subForest)
 ```
 
+We compute a score map as described above: each punter wishes to maximize their
+lead over the other punters, or at very least come as close as possible to the
+first-placed punter.
+
 ```haskell
--- assume: a punter wants to maximise the difference between their score and
---         the best other score, either taking as large a lead as possible,
----        or getting as close as possible to the first-placed punter
 mkScoreMap :: Graph -> ScoringData -> Game -> ScoreMap
 mkScoreMap graph scoringData game = punterLead
   where
@@ -92,29 +106,38 @@ mkScoreMap graph scoringData game = punterLead
       ,let bestOtherScore = maximum (M.elems (M.delete punterId scores))]
 ```
 
+Tortoise is slow enough if we only compute the game tree once, therefore we
+request some memory, and store it there. Given memory, we either:
+
+  - read the tree from memory; or
+  - create the tree on the fly.
+
+After each move, we walk down the tree:
+
+  - if a level is selecting another punter's move we check the game state
+    and use that move;
+  - otherwise, we select the optimal move and return the updated tree.
+  
+We then write the updated tree to memory so we can reuse it on the next
+iteration.
+
 ```haskell
 tortoise :: IORef (Maybe (Forest (PunterId, Edge, Int))) -> Punter
 tortoise ioRef graph scoringData myId = go
   where
     go :: Game -> IO Edge
     go game = do
-      -- we either:
-      --   a) read the tree from memory; or
-      --   b) create the tree on the fly
       let defGameTree = mkGameTree graph myId game
       let defOptimalTree = optimal graph scoringData myId game defGameTree
       gameTree <- fromMaybe defOptimalTree <$> readIORef ioRef
-      -- we walk down the tree:
-      --   * if a level is selecting another punter's move we check the game state
-      --     and use that move;
-      --   * otherwise, we select the optimal move and return the updated tree
       let T.Node (_,bestMove,_) gameTree' = applyMoves myId game gameTree
-      -- we then write the updated tree to memory so we can reuse it next iteration
       writeIORef ioRef (Just gameTree')
       return bestMove
 ```
 
-Walk down the game tree selecting the moves each opposing punter selected.
+The function `applyMoves` walks down the game tree, selecting the moves each
+opposing punter actually selected at each step, until we reach the level for the
+current punter's move. Once there, we select the move which maximizes the score.
 
 ```haskell
 applyMoves :: PunterId -> Game -> Forest (PunterId, Edge, Int) -> Tree (PunterId, Edge, Int)
@@ -128,6 +151,9 @@ applyMoves myId game gameTree
     latestMove = head (game M.! punterId)
     gameTree'  = T.subForest (fromJust (find ((==latestMove) . nodeToEdge) gameTree))
 ```
+
+Last, we've got a bunch of helper functions to deal with these tree nodes and
+such.
 
 ```haskell
 nodeToPunterId :: Tree (PunterId, Edge, Int) -> PunterId
