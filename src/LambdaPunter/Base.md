@@ -12,6 +12,7 @@ module LambdaPunter.Base
   ,Msg(..)
   ,PunterException(..)
   ,runPunter
+  ,claimEdge
   ,module X
   ) where
 ```
@@ -55,7 +56,7 @@ type PunterId = Int
 ```
 
 ```haskell
-type Punter = Graph -> PunterId -> Game -> IO Edge
+type Punter = Graph -> ScoringData -> PunterId -> Game -> IO Edge
 ```
 
 Representing moves
@@ -92,8 +93,7 @@ runPunter punter hdl = do
   -- receive punter-id
   msg <- BS.hGetLine hdl
   let
-    punterId :: Int
-    punterId = decodePunterId msg
+    (punterId, numPunters) = decodePunterInfo msg
 
   -- receive graph
   msg <- BS.hGetLine hdl
@@ -102,6 +102,10 @@ runPunter punter hdl = do
     graph = decodeGraph msg
     scoringData :: ScoringData
     scoringData = mkScoringData graph
+    realPunter :: Game -> IO Edge
+    realPunter = punter graph scoringData punterId
+    initGame :: Game
+    initGame = foldr (\punterId -> M.insert punterId []) M.empty [0..numPunters]
 
   -- loop
   let
@@ -110,7 +114,7 @@ runPunter punter hdl = do
       msg <- BS.hGetLine hdl
       case decodeMsg msg of
         Query     -> do
-          edge <- punter graph punterId game
+          edge <- realPunter game
           let move = Move punterId (edgeSource edge) (edgeTarget edge)
           let game' = claimEdge punterId edge game
           T.hPutStrLn hdl (encodeToLazyText move)
@@ -126,20 +130,22 @@ runPunter punter hdl = do
               "Punter "<> show punterId <>" scored "<> show scoreLocal <>" points"
 
   Control.Exception.catch
-    (punterLoop M.empty hdl)
+    (punterLoop initGame hdl)
     (\e -> putStrLn $ show punterId <> ": " <> show (e :: PunterException))
 ```
 
 ```haskell
+-- assume: every punter already has an entry in the matrix
 claimEdge :: PunterId -> Edge -> Game -> Game
-claimEdge punterId edge game
-  | M.member punterId game = M.adjust (edge:) punterId game
-  | otherwise              = M.insert punterId [edge] game
+claimEdge punterId edge game = M.adjust (edge:) punterId game
 ```
 
 ```haskell
-decodePunterId :: ByteString -> PunterId
-decodePunterId = read . BS.unpack . stripLabel "hello punter:"
+decodePunterInfo :: ByteString -> (PunterId, Int)
+decodePunterInfo msg =
+  let (punterId, numPunters) = BS.breakSubstring " of " (stripLabel "hello punter:" msg)
+  in  (read . BS.unpack $ punterId
+      ,read . BS.unpack . stripLabel " of " $ numPunters)
 
 decodeGraph :: ByteString -> Graph
 decodeGraph = decodeJSON . stripLabel "graph:"

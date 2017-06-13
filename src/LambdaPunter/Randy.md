@@ -11,7 +11,7 @@ import System.Random (randomRIO)
 
 ```haskell
 randy :: Punter
-randy graph punterId game = randomElem $ available graph game
+randy graph scoringData punterId game = randomElem $ available graph game
 ```
 
 ```haskell

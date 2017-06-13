@@ -2,6 +2,7 @@ module Main where
 
 import Control.Concurrent
 import Control.Exception
+import Data.IORef
 import LambdaPunter
 import Network.Socket
 import System.IO
@@ -12,8 +13,12 @@ main = do
   lpHost <- inet_addr "127.0.0.1"
   let lpPort = 9999
   let lpAddr = SockAddrInet lpPort lpHost
-  forkChild $ connectPunter randy lpAddr
-  forkChild $ connectPunter randy lpAddr
+  forkChild $ do
+    ioRef <- newIORef Nothing
+    connectPunter (tortoise ioRef) lpAddr
+  threadDelay 1000
+  forkChild $ do
+    connectPunter randy lpAddr
   waitForChildren
 
 connectPunter :: Punter -> SockAddr -> IO ()

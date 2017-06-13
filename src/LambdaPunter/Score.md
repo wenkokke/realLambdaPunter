@@ -1,6 +1,9 @@
+```haskell
 {-# LANGUAGE RecordWildCards #-}
 module LambdaPunter.Score where
+```
 
+```haskell
 import Data.Coerce (coerce)
 import qualified Data.Graph.Inductive.PatriciaTree as F (Gr)
 import qualified Data.Graph.Inductive.Graph as F
@@ -8,17 +11,15 @@ import qualified Data.Graph.Inductive.Query.DFS as F (reachable)
 import qualified Data.Graph.Inductive.Query.SP as F
 import qualified Data.IntMap as M
 import Data.Maybe (catMaybes)
-import Debug.Trace (traceShow)
 import LambdaPunter.Graph
+```
 
+```haskell
 type NodeMap a = M.IntMap a
-
--- 1. compute reachable components within the punter's subgraph from each mine
--- 2. compute shortest paths from each mine within the supergraph
--- TODO the graph is _undirected_ whereas the code below treats it as directed
-
 type ScoringData = NodeMap (NodeMap Int)
+```
 
+```haskell
 mkScoringData :: Graph -> ScoringData
 mkScoringData Graph{..} = M.fromList
   [(mineId, treeToMap $ F.spTree mineId gameGr) | mineId <- graphMines]
@@ -30,14 +31,15 @@ mkScoringData Graph{..} = M.fromList
         lnodes = [(nodeId node, ()) | node <- graphNodes]
         ledges :: Real b => [F.LEdge b]
         ledges = [(edgeSource edge, edgeTarget edge, 1) | edge <- graphEdges]
-               ++[(edgeTarget edge, edgeSource edge, 1) | edge <- graphEdges] 
+               ++[(edgeTarget edge, edgeSource edge, 1) | edge <- graphEdges]
 
     treeToMap :: Real b => F.LRTree b -> NodeMap b
     treeToMap paths = M.fromList
       [(nodeId, weightSum ^ 2)
       |path <- paths, let (nodeId:_, weightSum:_) = unzip (coerce path)]
+```
 
-
+```haskell
 score :: Graph -> ScoringData -> [Edge] -> Int
 score Graph{..} scoringData punterEdges = sum . catMaybes $
   [M.lookup nodeId =<< M.lookup mineId scoringData
@@ -55,3 +57,4 @@ score Graph{..} scoringData punterEdges = sum . catMaybes $
     reachable :: NodeMap [NodeId]
     reachable = M.fromList
       [(mineId, F.reachable mineId punterGr) | mineId <- graphMines]
+```
