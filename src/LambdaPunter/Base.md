@@ -105,7 +105,7 @@ runPunter punter hdl = do
     realPunter :: Game -> IO Edge
     realPunter = punter graph scoringData punterId
     initGame :: Game
-    initGame = foldr (\punterId -> M.insert punterId []) M.empty [0..numPunters]
+    initGame = foldr (\punterId -> M.insert punterId []) M.empty [0..numPunters - 1]
 
   -- loop
   let
