@@ -131,7 +131,7 @@ runPunter punter hdl = do
 
   Control.Exception.catch
     (punterLoop initGame hdl)
-    (\e -> putStrLn $ show punterId <> ": " <> show (e :: PunterException))
+    (\e -> putStrLn $ show punterId <> ": " <> show (e :: SomeException))
 ```
 
 ```haskell

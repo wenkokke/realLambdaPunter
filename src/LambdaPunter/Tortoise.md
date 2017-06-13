@@ -12,6 +12,7 @@ import Data.List (find,maximumBy)
 import Data.Maybe (fromMaybe,fromJust)
 import Data.Tree (Tree,Forest)
 import qualified Data.Tree as T
+import Debug.Trace (traceShow)
 import LambdaPunter.Base
 import LambdaPunter.Randy (available)
 ```
@@ -53,9 +54,7 @@ optimal graph scoringData myId game = map (fst . go game)
       numPunters = maximum $ M.keys game
 
       -- compute the point-value for each punter in this final state
-      scores = M.fromList
-        [ (punterId, value graph scoringData punterId game)
-        | punterId <- [0..numPunters] ]
+      scores = mkScoreMap graph scoringData game
 
       in (T.Node (punterId, edge, scores M.! myId) [], scores)
 
@@ -76,17 +75,21 @@ optimal graph scoringData myId game = map (fst . go game)
 -- assume: a punter wants to maximise the difference between their score and
 --         the best other score, either taking as large a lead as possible,
 ---        or getting as close as possible to the first-placed punter
-value :: Graph -> ScoringData -> PunterId -> Game -> Int
-value graph scoringData myId game = myScore - bestOtherScore
+mkScoreMap :: Graph -> ScoringData -> Game -> ScoreMap
+mkScoreMap graph scoringData game = punterLead
   where
     -- assume: each punter has an entry in the graph
     numPunters = length $ M.keys game
 
-    -- compute the score of this punter and the best other punter
-    myScore = score graph scoringData (game M.! myId)
-    bestOtherScore = maximum
-      [ score graph scoringData (game M.! punterId)
-      | punterId <- [0..numPunters], punterId /= myId ]
+    scores = M.fromList
+      [(punterId, score graph scoringData (game M.! punterId))
+      |punterId <- [0..numPunters - 1]]
+
+    punterLead = M.fromList
+      [(punterId, myScore - bestOtherScore)
+      |punterId <- [0..numPunters - 1]
+      ,let myScore = scores M.! punterId
+      ,let bestOtherScore = maximum (M.elems (M.delete punterId scores))]
 ```
 
 ```haskell

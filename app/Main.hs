@@ -14,8 +14,7 @@ main = do
   let lpPort = 9999
   let lpAddr = SockAddrInet lpPort lpHost
   forkChild $ do
-    ioRef <- newIORef Nothing
-    connectPunter (tortoise ioRef) lpAddr
+    connectPunter greedo lpAddr
   threadDelay 1000
   forkChild $ do
     connectPunter randy lpAddr

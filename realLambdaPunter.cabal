@@ -22,6 +22,7 @@ library
                      , LambdaPunter.Base
                      , LambdaPunter.Randy
                      , LambdaPunter.Tortoise
+                     , LambdaPunter.Greedo
   ghc-options:         -pgmL markdown-unlit
   build-depends:       aeson
                      , base
