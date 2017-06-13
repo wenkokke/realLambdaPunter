@@ -1,5 +1,4 @@
 ```haskell
-{-# LANGUAGE RecordWildCards #-}
 module LambdaPunter.Tortoise where
 ```
 
@@ -29,6 +28,7 @@ the tree becomes infinite and also why would you *ever* pass?
 mkGameTree :: Graph -> PunterId -> Game -> Forest (PunterId, Edge)
 mkGameTree graph myId game = go game (turnCycle 0)
   where
+    numEdges = sum . map length . M.elems
     maxEdges = length $ graphEdges graph
     numPunters = maximum $ M.keys game
 
@@ -153,7 +153,7 @@ applyMoves myId game gameTree
 ```
 
 Last, we've got a bunch of helper functions to deal with these tree nodes and
-such.
+such like.
 
 ```haskell
 nodeToPunterId :: Tree (PunterId, Edge, Int) -> PunterId
@@ -164,7 +164,4 @@ nodeToEdge (T.Node (_, edge, _) _) = edge
 
 nodeToScore :: Tree (PunterId, Edge, Int) -> Int
 nodeToScore (T.Node (_, _, score) _) = score
-
-numEdges :: Game -> Int
-numEdges = sum . map length . M.elems
 ```
