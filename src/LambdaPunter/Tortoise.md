@@ -15,7 +15,6 @@ import Data.List (find,maximumBy)
 import Data.Maybe (fromMaybe,fromJust)
 import Data.Tree (Tree,Forest)
 import qualified Data.Tree as T
-import Debug.Trace (traceShow)
 import LambdaPunter.Base
 import LambdaPunter.Randy (available)
 ```
