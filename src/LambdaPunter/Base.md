@@ -25,7 +25,9 @@ import Data.Aeson.TH
 import Data.Aeson.Text
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BS
+import Data.Char (toLower)
 import qualified Data.IntMap as M
+import Data.List (find)
 import Data.Monoid ((<>))
 import Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
@@ -41,15 +43,12 @@ import qualified Data.IntMap as M
 import LambdaPunter.Graph
 ```
 
-Representing the game state
+Representing punters and the game state
 ---
 
 ```haskell
 type Game = M.IntMap [Edge]
 ```
-
-Representing punters
----
 
 ```haskell
 type PunterId = Int
@@ -59,29 +58,70 @@ type PunterId = Int
 type Punter = Graph -> ScoringData -> PunterId -> Game -> IO Edge
 ```
 
-Representing moves
+Representing game modes and the setup
 ---
 
 ```haskell
-data Move = Move
-  { movePunter :: PunterId
-  , moveSource :: NodeId
-  , moveTarget :: NodeId
+newtype Mode = Mode { modeMode :: String }
+```
+
+```haskell
+$(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''Mode)
+```
+
+```haskell
+data Setup = Setup
+  { setupPunter  :: PunterId
+  , setupPunters :: Int
   }
 ```
 
 ```haskell
-$(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''Move)
+$(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''Setup)
+```
+
+Representing moves
+---
+
+```haskell
+data Move
+  = Claim { movePunter :: PunterId
+          , moveSource :: NodeId
+          , moveTarget :: NodeId
+          }
+  | Pass  { passPunter :: PunterId
+          }
+```
+
+```haskell
+$(deriveJSON defaultOptions
+  { fieldLabelModifier     = dropFirstWord
+  , constructorTagModifier = map toLower
+  , sumEncoding            = ObjectWithSingleField
+  } ''Move)
 ```
 
 Representing messages
 ---
 
 ```haskell
+data Score = Score
+  { scorePunter :: PunterId
+  , scoreScore  :: Int
+  }
+
 data Msg
-  = Query
-  | Info Move
-  | End Int
+  = Move { moveMoves :: [Move] }
+  | Stop { stopMoves :: [Move], stopScores :: [Score] }
+```
+
+```haskell
+$(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''Score)
+$(deriveJSON defaultOptions
+  { fieldLabelModifier     = dropFirstWord
+  , constructorTagModifier = map toLower
+  , sumEncoding            = ObjectWithSingleField
+  } ''Msg)
 ```
 
 Running punters over a handle
@@ -90,40 +130,38 @@ Running punters over a handle
 ```haskell
 runPunter :: Punter -> Handle -> IO ()
 runPunter punter hdl = do
-  -- receive punter-id
+
+  -- tell the server we wish to punt
+  T.hPutStrLn hdl (encodeToLazyText (Mode "punt"))
+
+  -- receive the game setup
   msg <- BS.hGetLine hdl
   let
-    (punterId, numPunters) = decodePunterInfo msg
+    Setup punterId numPunters = decodeJSON msg
 
   -- receive graph
   msg <- BS.hGetLine hdl
   let
-    graph :: Graph
-    graph = decodeGraph msg
-    scoringData :: ScoringData
+    graph       = wrappedGraph $ decodeJSON msg
     scoringData = mkScoringData graph
-    realPunter :: Game -> IO Edge
-    realPunter = punter graph scoringData punterId
-    initGame :: Game
-    initGame = foldr (\punterId -> M.insert punterId []) M.empty [0..numPunters - 1]
+    realPunter  = punter graph scoringData punterId
+    initGame    = foldr (\punterId -> M.insert punterId []) M.empty [0..numPunters - 1]
 
   -- loop
   let
     punterLoop :: Game -> Handle -> IO ()
     punterLoop game hdl = do
       msg <- BS.hGetLine hdl
-      case decodeMsg msg of
-        Query     -> do
-          edge <- realPunter game
-          let move = Move punterId (edgeSource edge) (edgeTarget edge)
-          let game' = claimEdge punterId edge game
+      case decodeJSON msg of
+        Move moves -> do
+          let game'  = foldr (\m f -> runMove m . f) id moves game
+          Edge source target <- realPunter game'
+          let move   = Claim punterId source target
+          let game'' = runMove move game'
           T.hPutStrLn hdl (encodeToLazyText move)
-          punterLoop game' hdl
-        Info move -> do
-          let edge = Edge (moveSource move) (moveTarget move)
-          let game' = claimEdge (movePunter move) edge game
-          punterLoop game' hdl
-        End scoreRemote -> do
+          punterLoop game'' hdl
+        Stop moves scores -> do
+          let Just scoreRemote = scoreScore <$> find ((== punterId).scorePunter) scores
           let scoreLocal = score graph scoringData (game M.! punterId)
           assert (scoreRemote == scoreLocal) $
             putStrLn $
@@ -135,26 +173,13 @@ runPunter punter hdl = do
 ```
 
 ```haskell
+runMove :: Move -> Game -> Game
+runMove (Claim punterId source target) = claimEdge punterId (Edge source target)
+runMove (Pass _) = id
+
 -- assume: every punter already has an entry in the matrix
 claimEdge :: PunterId -> Edge -> Game -> Game
 claimEdge punterId edge game = M.adjust (edge:) punterId game
-```
-
-```haskell
-decodePunterInfo :: ByteString -> (PunterId, Int)
-decodePunterInfo msg =
-  let (punterId, numPunters) = BS.breakSubstring " of " (stripLabel "hello punter:" msg)
-  in  (read . BS.unpack $ punterId
-      ,read . BS.unpack . stripLabel " of " $ numPunters)
-
-decodeGraph :: ByteString -> Graph
-decodeGraph = decodeJSON . stripLabel "graph:"
-
-decodeMsg :: ByteString -> Msg
-decodeMsg "move:?" = Query
-decodeMsg msg
-  | "move:"  `BS.isPrefixOf` msg = Info (decodeJSON (stripLabel "move:" msg))
-  | "score:" `BS.isPrefixOf` msg = End (decodeJSON (stripLabel "score:" msg))
 ```
 
 ```haskell
@@ -163,14 +188,6 @@ decodeJSON msg =
   case decodeStrict msg of
     Just val -> val
     Nothing  -> throw $ CannotDecode msg
-```
-
-```haskell
-stripLabel :: String -> ByteString -> ByteString
-stripLabel lbl msg =
-  case BS.stripPrefix (BS.pack lbl) msg of
-    Just val -> val
-    Nothing  -> throw $ ExpectedLabel lbl msg
 ```
 
 ```haskell

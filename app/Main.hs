@@ -13,12 +13,7 @@ main = do
   lpHost <- inet_addr "127.0.0.1"
   let lpPort = 9999
   let lpAddr = SockAddrInet lpPort lpHost
-  forkChild $ do
-    connectPunter greedo lpAddr
-  threadDelay 1000
-  forkChild $ do
-    connectPunter randy lpAddr
-  waitForChildren
+  connectPunter greedo lpAddr
 
 connectPunter :: Punter -> SockAddr -> IO ()
 connectPunter punter addr = do
@@ -30,22 +25,22 @@ connectPunter punter addr = do
     (\e -> print (e :: IOException))
   hClose hdl
 
-children :: MVar [MVar ()]
-children = unsafePerformIO (newMVar [])
-
-waitForChildren :: IO ()
-waitForChildren = do
-  cs <- takeMVar children
-  case cs of
-    []   -> return ()
-    m:ms -> do
-       putMVar children ms
-       takeMVar m
-       waitForChildren
-
-forkChild :: IO () -> IO ThreadId
-forkChild io = do
-    mvar <- newEmptyMVar
-    childs <- takeMVar children
-    putMVar children (mvar:childs)
-    forkFinally io (\_ -> putMVar mvar ())
+-- children :: MVar [MVar ()]
+-- children = unsafePerformIO (newMVar [])
+--
+-- waitForChildren :: IO ()
+-- waitForChildren = do
+--   cs <- takeMVar children
+--   case cs of
+--     []   -> return ()
+--     m:ms -> do
+--        putMVar children ms
+--        takeMVar m
+--        waitForChildren
+--
+-- forkChild :: IO () -> IO ThreadId
+-- forkChild io = do
+--     mvar <- newEmptyMVar
+--     childs <- takeMVar children
+--     putMVar children (mvar:childs)
+--     forkFinally io (\_ -> putMVar mvar ())

@@ -7,6 +7,7 @@ module LambdaPunter.Graph where
 
 ```haskell
 import Data.Aeson.TH
+import Data.Char (toLower)
 import LambdaPunter.TH (dropFirstWord)
 ```
 
@@ -14,6 +15,10 @@ Representing the game graph
 ---
 
 ```haskell
+newtype GraphWrapper = GraphWrapper
+  { wrappedGraph :: Graph
+  } deriving (Eq,Show)
+
 data Graph = Graph
   { graphNodes :: [Node]
   , graphEdges :: [Edge]
@@ -51,4 +56,5 @@ instance Show Edge where
 $(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''Node)
 $(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''Edge)
 $(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''Graph)
+$(deriveJSON defaultOptions{fieldLabelModifier = dropFirstWord} ''GraphWrapper)
 ```
