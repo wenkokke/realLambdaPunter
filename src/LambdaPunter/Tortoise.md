@@ -13,10 +13,10 @@ import qualified Data.IntMap as M
 import Data.IORef
 import Data.List (find,maximumBy)
 import Data.Maybe (fromMaybe,fromJust)
+import qualified Data.Set as S
 import Data.Tree (Tree,Forest)
 import qualified Data.Tree as T
 import LambdaPunter.Base
-import LambdaPunter.Randy (available)
 ```
 
 We build up a game tree, containing each possible move for each punter. This
@@ -24,8 +24,8 @@ assumes that no punter will ever choose to "pass", because if we allow passing
 the tree becomes infinite and also why would you *ever* pass?
 
 ```haskell
-mkGameTree :: Graph -> PunterId -> Game -> Forest (PunterId, Edge)
-mkGameTree graph myId game = go game (turnCycle 0)
+mkGameTree :: Graph -> PunterId -> Game -> LegalMoves -> Forest (PunterId, Edge)
+mkGameTree graph myId game legalMoves = go game (turnCycle 0)
   where
     numEdges = sum . map length . M.elems
     maxEdges = length $ graphEdges graph
@@ -41,7 +41,7 @@ mkGameTree graph myId game = go game (turnCycle 0)
     -- assume: no punter will ever pass
     go :: Game -> [PunterId] -> Forest (PunterId, Edge)
     go game (punterId:rest) = do
-      edge <- available graph game
+      edge <- S.toList legalMoves
       let game' = claimEdge punterId edge game
       return . T.Node (punterId, edge) $
         if numEdges game' >= maxEdges then [] else go game' rest
@@ -124,9 +124,9 @@ iteration.
 tortoise :: IORef (Maybe (Forest (PunterId, Edge, Int))) -> Punter
 tortoise ioRef graph scoringData myId = go
   where
-    go :: Game -> IO Edge
-    go game = do
-      let defGameTree = mkGameTree graph myId game
+    go :: Game -> LegalMoves -> IO Edge
+    go game legalMoves = do
+      let defGameTree = mkGameTree graph myId game legalMoves
       let defOptimalTree = optimal graph scoringData myId game defGameTree
       gameTree <- fromMaybe defOptimalTree <$> readIORef ioRef
       let T.Node (_,bestMove,_) gameTree' = applyMoves myId game gameTree

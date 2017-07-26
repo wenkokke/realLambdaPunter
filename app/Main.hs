@@ -13,7 +13,7 @@ main = do
   lpHost <- inet_addr "127.0.0.1"
   let lpPort = 9999
   let lpAddr = SockAddrInet lpPort lpHost
-  connectPunter greedo lpAddr
+  connectPunter randy lpAddr
 
 connectPunter :: Punter -> SockAddr -> IO ()
 connectPunter punter addr = do

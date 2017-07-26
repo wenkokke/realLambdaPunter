@@ -1,4 +1,5 @@
 ```haskell
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -8,6 +9,8 @@ module LambdaPunter.Graph where
 ```haskell
 import Data.Aeson.TH
 import Data.Char (toLower)
+import Data.Hashable (Hashable)
+import GHC.Generics (Generic)
 import LambdaPunter.TH (dropFirstWord)
 ```
 
@@ -27,12 +30,12 @@ data Graph = Graph
 
 newtype Node = Node
   { nodeId :: NodeId
-  } deriving (Eq)
+  } deriving (Eq,Ord,Generic)
 
 data Edge = Edge
   { edgeSource :: NodeId
   , edgeTarget :: NodeId
-  }
+  } deriving (Ord,Generic)
 
 type NodeId = Int
 ```
@@ -42,6 +45,11 @@ instance Eq Edge where
   e1 == e2 =
     (edgeSource e1 == edgeSource e2 && edgeTarget e1 == edgeTarget e2) ||
     (edgeSource e1 == edgeTarget e2 && edgeTarget e1 == edgeSource e2)
+```
+
+```haskell
+instance Hashable Node
+instance Hashable Edge
 ```
 
 ```haskell

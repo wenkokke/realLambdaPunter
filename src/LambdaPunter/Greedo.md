@@ -6,8 +6,8 @@ module LambdaPunter.Greedo where
 import Data.Function (on)
 import qualified Data.IntMap as M
 import Data.List (maximumBy)
+import qualified Data.Set as S
 import LambdaPunter.Base
-import LambdaPunter.Randy (available)
 import LambdaPunter.Tortoise (mkScoreMap)
 ```
 
@@ -15,9 +15,9 @@ import LambdaPunter.Tortoise (mkScoreMap)
 greedo :: Punter
 greedo graph scoringData myId = go
   where
-    go :: Game -> IO Edge
-    go game = return . fst . maximumBy (compare `on` snd) $ do
-      edge <- available graph game
+    go :: Game -> LegalMoves -> IO Edge
+    go game legalMoves = return . fst . maximumBy (compare `on` snd) $ do
+      edge <- S.toList legalMoves
       let scores  = mkScoreMap graph scoringData (claimEdge myId edge game)
       let myScore = scores M.! myId
       return (edge, myScore)

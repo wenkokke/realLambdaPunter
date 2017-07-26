@@ -6,6 +6,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module LambdaPunter.Base
   (Game
+  ,LegalMoves
   ,PunterId
   ,Punter
   ,Move(..)
@@ -26,8 +27,10 @@ import Data.Aeson.Text
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BS
 import Data.Char (toLower)
+import qualified Data.Set as S
 import qualified Data.IntMap as M
 import Data.List (find)
+import Data.Maybe (mapMaybe)
 import Data.Monoid ((<>))
 import Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
@@ -48,6 +51,7 @@ Representing punters and the game state
 
 ```haskell
 type Game = M.IntMap [Edge]
+type LegalMoves = S.Set Edge
 ```
 
 ```haskell
@@ -55,7 +59,7 @@ type PunterId = Int
 ```
 
 ```haskell
-type Punter = Graph -> ScoringData -> PunterId -> Game -> IO Edge
+type Punter = Graph -> ScoringData -> PunterId -> Game -> LegalMoves -> IO Edge
 ```
 
 Representing game modes and the setup
@@ -143,23 +147,26 @@ runPunter punter hdl = do
   msg <- BS.hGetLine hdl
   let
     graph       = wrappedGraph $ decodeJSON msg
+    legalMoves  = S.fromList $ graphEdges graph
     scoringData = mkScoringData graph
     realPunter  = punter graph scoringData punterId
     initGame    = foldr (\punterId -> M.insert punterId []) M.empty [0..numPunters - 1]
 
   -- loop
   let
-    punterLoop :: Game -> Handle -> IO ()
-    punterLoop game hdl = do
+    punterLoop :: Game -> LegalMoves -> Handle -> IO ()
+    punterLoop game legalMoves hdl = do
       msg <- BS.hGetLine hdl
       case decodeJSON msg of
         Move moves -> do
           let game'  = foldr (\m f -> runMove m . f) id moves game
-          Edge source target <- realPunter game'
+          let legalMoves' = S.difference legalMoves (S.fromList $ mapMaybe moveToEdge moves)
+          Edge source target <- realPunter game' legalMoves'
           let move   = Claim punterId source target
           let game'' = runMove move game'
+          let legalMoves'' = S.delete (Edge source target) legalMoves'
           T.hPutStrLn hdl (encodeToLazyText move)
-          punterLoop game'' hdl
+          punterLoop game'' legalMoves'' hdl
         Stop moves scores -> do
           let Just scoreRemote = scoreScore <$> find ((== punterId).scorePunter) scores
           let scoreLocal = score graph scoringData (game M.! punterId)
@@ -168,8 +175,14 @@ runPunter punter hdl = do
               "Punter "<> show punterId <>" scored "<> show scoreLocal <>" points"
 
   Control.Exception.catch
-    (punterLoop initGame hdl)
+    (punterLoop initGame legalMoves hdl)
     (\e -> putStrLn $ show punterId <> ": " <> show (e :: SomeException))
+```
+
+```haskell
+moveToEdge :: Move -> Maybe Edge
+moveToEdge (Claim _ source target) = Just $ Edge source target
+moveToEdge (Pass _) = Nothing
 ```
 
 ```haskell

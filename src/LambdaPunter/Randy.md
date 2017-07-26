@@ -4,22 +4,18 @@ module LambdaPunter.Randy where
 
 ```haskell
 import LambdaPunter.Base
-import Data.List ((\\))
+import qualified Data.Set as S
 import qualified Data.IntMap as M
 import System.Random (randomRIO)
 ```
 
 ```haskell
 randy :: Punter
-randy graph scoringData punterId game = randomElem $ available graph game
+randy _ _ _ _ legalMoves = randomElem legalMoves
 ```
 
 ```haskell
-available :: Graph -> Game -> [Edge]
-available graph game = graphEdges graph \\ concat (M.elems game)
-```
-
-```haskell
-randomElem :: [a] -> IO a
-randomElem xs = fmap (xs !!) $ randomRIO (0, length xs - 1)
+randomElem :: LegalMoves -> IO Edge
+randomElem xs = (`S.elemAt` xs) <$> randomRIO (0, S.size xs - 1)
+-- randomElem xs = (S.toList xs !!) <$> randomRIO (0, S.size xs - 1)
 ```
