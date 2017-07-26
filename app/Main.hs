@@ -5,6 +5,7 @@ import Control.Exception
 import Data.IORef
 import LambdaPunter
 import Network.Socket
+import System.Environment
 import System.IO
 import System.IO.Unsafe
 
@@ -13,7 +14,17 @@ main = do
   lpHost <- inet_addr "127.0.0.1"
   let lpPort = 9999
   let lpAddr = SockAddrInet lpPort lpHost
-  connectPunter randy lpAddr
+  args <- getArgs
+  case args of
+    ["randy"]    -> do
+      connectPunter randy    lpAddr
+    ["tortoise"] -> do
+      ioRef <- newIORef Nothing
+      connectPunter (tortoise ioRef) lpAddr
+    ["greedo"]   -> do
+      connectPunter greedo   lpAddr
+    _            -> do
+      putStrLn "usage: realLambdaPunter [randy|tortoise|greedo]"
 
 connectPunter :: Punter -> SockAddr -> IO ()
 connectPunter punter addr = do
@@ -24,23 +35,3 @@ connectPunter punter addr = do
     (runPunter punter hdl)
     (\e -> print (e :: IOException))
   hClose hdl
-
--- children :: MVar [MVar ()]
--- children = unsafePerformIO (newMVar [])
---
--- waitForChildren :: IO ()
--- waitForChildren = do
---   cs <- takeMVar children
---   case cs of
---     []   -> return ()
---     m:ms -> do
---        putMVar children ms
---        takeMVar m
---        waitForChildren
---
--- forkChild :: IO () -> IO ThreadId
--- forkChild io = do
---     mvar <- newEmptyMVar
---     childs <- takeMVar children
---     putMVar children (mvar:childs)
---     forkFinally io (\_ -> putMVar mvar ())
