@@ -24,11 +24,11 @@ assumes that no punter will ever choose to "pass", because if we allow passing
 the tree becomes infinite and also why would you *ever* pass?
 
 ```haskell
-mkGameTree :: Graph -> PunterId -> Game -> LegalMoves -> Forest (PunterId, Edge)
+mkGameTree :: Map -> PunterId -> Game -> LegalMoves -> Forest (PunterId, River)
 mkGameTree graph myId game legalMoves = go game (turnCycle 0)
   where
-    numEdges = sum . map length . M.elems
-    maxEdges = length $ graphEdges graph
+    numRivers = sum . map length . M.elems
+    maxRivers = length $ graphRivers graph
     numPunters = maximum $ M.keys game
 
     -- assume: the punters are always given turns in order 0..numPunters
@@ -39,28 +39,28 @@ mkGameTree graph myId game legalMoves = go game (turnCycle 0)
              | otherwise              = turnCycle (punterId + 1)
 
     -- assume: no punter will ever pass
-    go :: Game -> [PunterId] -> Forest (PunterId, Edge)
+    go :: Game -> [PunterId] -> Forest (PunterId, River)
     go game (punterId:rest) = do
-      edge <- S.toList legalMoves
-      let game' = claimEdge punterId edge game
-      return . T.Node (punterId, edge) $
-        if numEdges game' >= maxEdges then [] else go game' rest
+      river <- S.toList legalMoves
+      let game' = claimRiver punterId river game
+      return . T.Node (punterId, river) $
+        if numRivers game' >= maxRivers then [] else go game' rest
 ```
 
 We then augment this tree with scores, computing the scores for each punter at
 each possible outcome. We then propagate these scores down the tree by, at every
 move, choosing the alternative which maximizes the score of the punter whose
-turn it is. We store the score of the punter we're running at each node.
+turn it is. We store the score of the punter we're running at each site.
 
 ```haskell
 type ScoreMap = M.IntMap Int
 
-optimal :: Graph -> ScoringData -> PunterId -> Game
-        -> Forest (PunterId, Edge) -> Forest (PunterId, Edge, Int)
+optimal :: Map -> ScoringData -> PunterId -> Game
+        -> Forest (PunterId, River) -> Forest (PunterId, River, Int)
 optimal graph scoringData myId game = map (fst . go game)
   where
-    go :: Game -> Tree (PunterId, Edge) -> (Tree (PunterId, Edge, Int), ScoreMap)
-    go game (T.Node (punterId, edge) []) = let
+    go :: Game -> Tree (PunterId, River) -> (Tree (PunterId, River, Int), ScoreMap)
+    go game (T.Node (punterId, river) []) = let
 
       -- assume: each punter has an entry in the graph
       numPunters = maximum $ M.keys game
@@ -68,14 +68,14 @@ optimal graph scoringData myId game = map (fst . go game)
       -- compute the point-value for each punter in this final state
       scores = mkScoreMap graph scoringData game
 
-      in (T.Node (punterId, edge, scores M.! myId) [], scores)
+      in (T.Node (punterId, river, scores M.! myId) [], scores)
 
     -- if there are still moves left to make, we pick the move which
     -- maximizes the point-value of the punter whose turn it is
-    go game (T.Node (punterId, edge) subForest) = let
+    go game (T.Node (punterId, river) subForest) = let
 
       -- make the recursive call
-      goForest = map (go (claimEdge punterId edge game))
+      goForest = map (go (claimRiver punterId river game))
 
       -- get the current punter's score
       currentPunterScore = (M.! punterId) . snd
@@ -88,7 +88,7 @@ lead over the other punters, or at very least come as close as possible to the
 first-placed punter.
 
 ```haskell
-mkScoreMap :: Graph -> ScoringData -> Game -> ScoreMap
+mkScoreMap :: Map -> ScoringData -> Game -> ScoreMap
 mkScoreMap graph scoringData game = punterLead
   where
     -- assume: each punter has an entry in the graph
@@ -121,10 +121,10 @@ We then write the updated tree to memory so we can reuse it on the next
 iteration.
 
 ```haskell
-tortoise :: IORef (Maybe (Forest (PunterId, Edge, Int))) -> Punter
+tortoise :: IORef (Maybe (Forest (PunterId, River, Int))) -> Punter
 tortoise ioRef graph scoringData myId = go
   where
-    go :: Game -> LegalMoves -> IO Edge
+    go :: Game -> LegalMoves -> IO River
     go game legalMoves = do
       let defGameTree = mkGameTree graph myId game legalMoves
       let defOptimalTree = optimal graph scoringData myId game defGameTree
@@ -139,28 +139,28 @@ opposing punter actually selected at each step, until we reach the level for the
 current punter's move. Once there, we select the move which maximizes the score.
 
 ```haskell
-applyMoves :: PunterId -> Game -> Forest (PunterId, Edge, Int) -> Tree (PunterId, Edge, Int)
+applyMoves :: PunterId -> Game -> Forest (PunterId, River, Int) -> Tree (PunterId, River, Int)
 applyMoves myId game gameTree
-  | punterId == myId = maximumBy (compare `on` nodeToScore) gameTree
+  | punterId == myId = maximumBy (compare `on` siteToScore) gameTree
   | otherwise        = applyMoves myId game gameTree'
   where
-    -- assume: all nodes in a forest refer to moves by the same punter
-    punterId   = nodeToPunterId (head gameTree)
+    -- assume: all sites in a forest refer to moves by the same punter
+    punterId   = siteToPunterId (head gameTree)
     -- assume: the game state is always up to date, and conses on the latest move
     latestMove = head (game M.! punterId)
-    gameTree'  = T.subForest (fromJust (find ((==latestMove) . nodeToEdge) gameTree))
+    gameTree'  = T.subForest (fromJust (find ((==latestMove) . siteToRiver) gameTree))
 ```
 
-Last, we've got a bunch of helper functions to deal with these tree nodes and
+Last, we've got a bunch of helper functions to deal with these tree sites and
 such like.
 
 ```haskell
-nodeToPunterId :: Tree (PunterId, Edge, Int) -> PunterId
-nodeToPunterId (T.Node (punterId, _, _) _) = punterId
+siteToPunterId :: Tree (PunterId, River, Int) -> PunterId
+siteToPunterId (T.Node (punterId, _, _) _) = punterId
 
-nodeToEdge :: Tree (PunterId, Edge, Int) -> Edge
-nodeToEdge (T.Node (_, edge, _) _) = edge
+siteToRiver :: Tree (PunterId, River, Int) -> River
+siteToRiver (T.Node (_, river, _) _) = river
 
-nodeToScore :: Tree (PunterId, Edge, Int) -> Int
-nodeToScore (T.Node (_, _, score) _) = score
+siteToScore :: Tree (PunterId, River, Int) -> Int
+siteToScore (T.Node (_, _, score) _) = score
 ```

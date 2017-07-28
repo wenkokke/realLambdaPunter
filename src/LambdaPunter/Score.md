@@ -11,50 +11,50 @@ import qualified Data.Graph.Inductive.Query.DFS as F (reachable)
 import qualified Data.Graph.Inductive.Query.SP as F
 import qualified Data.IntMap as M
 import Data.Maybe (catMaybes)
-import LambdaPunter.Graph
+import LambdaPunter.Map
 ```
 
 ```haskell
-type NodeMap a = M.IntMap a
-type ScoringData = NodeMap (NodeMap Int)
+type SiteMap a = M.IntMap a
+type ScoringData = SiteMap (SiteMap Int)
 ```
 
 ```haskell
-mkScoringData :: Graph -> ScoringData
-mkScoringData Graph{..} = M.fromList
+mkScoringData :: Map -> ScoringData
+mkScoringData Map{..} = M.fromList
   [(mineId, treeToMap $ F.spTree mineId gameGr) | mineId <- graphMines]
   where
     gameGr :: Real b => F.Gr () b
-    gameGr = F.mkGraph lnodes ledges
+    gameGr = F.mkGraph lsites lrivers
       where
-        lnodes :: [F.LNode ()]
-        lnodes = [(nodeId node, ()) | node <- graphNodes]
-        ledges :: Real b => [F.LEdge b]
-        ledges = [(edgeSource edge, edgeTarget edge, 1) | edge <- graphEdges]
-               ++[(edgeTarget edge, edgeSource edge, 1) | edge <- graphEdges]
+        lsites :: [F.LNode ()]
+        lsites = [(siteId site, ()) | site <- graphSites]
+        lrivers :: Real b => [F.LEdge b]
+        lrivers = [(riverSource river, riverTarget river, 1) | river <- graphRivers]
+               ++[(riverTarget river, riverSource river, 1) | river <- graphRivers]
 
-    treeToMap :: Real b => F.LRTree b -> NodeMap b
+    treeToMap :: Real b => F.LRTree b -> SiteMap b
     treeToMap paths = M.fromList
-      [(nodeId, weightSum ^ 2)
-      |path <- paths, let (nodeId:_, weightSum:_) = unzip (coerce path)]
+      [(siteId, weightSum ^ 2)
+      |path <- paths, let (siteId:_, weightSum:_) = unzip (coerce path)]
 ```
 
 ```haskell
-score :: Graph -> ScoringData -> [Edge] -> Int
-score Graph{..} scoringData punterEdges = sum . catMaybes $
-  [M.lookup nodeId =<< M.lookup mineId scoringData
-  |mineId <- graphMines, nodeId <- reachable M.! mineId, nodeId /= mineId]
+score :: Map -> ScoringData -> [River] -> Int
+score Map{..} scoringData punterRivers = sum . catMaybes $
+  [M.lookup siteId =<< M.lookup mineId scoringData
+  |mineId <- graphMines, siteId <- reachable M.! mineId, siteId /= mineId]
   where
     punterGr :: F.Gr () ()
-    punterGr = F.mkGraph lnodes ledges
+    punterGr = F.mkGraph lsites lrivers
       where
-        lnodes :: [F.LNode ()]
-        lnodes = [(nodeId node, ()) | node <- graphNodes]
-        ledges :: [F.LEdge ()]
-        ledges = [(edgeSource edge, edgeTarget edge, ()) | edge <- punterEdges]
-               ++[(edgeTarget edge, edgeSource edge, ()) | edge <- punterEdges]
+        lsites :: [F.LNode ()]
+        lsites = [(siteId site, ()) | site <- graphSites]
+        lrivers :: [F.LEdge ()]
+        lrivers = [(riverSource river, riverTarget river, ()) | river <- punterRivers]
+               ++[(riverTarget river, riverSource river, ()) | river <- punterRivers]
 
-    reachable :: NodeMap [NodeId]
+    reachable :: SiteMap [SiteId]
     reachable = M.fromList
       [(mineId, F.reachable mineId punterGr) | mineId <- graphMines]
 ```

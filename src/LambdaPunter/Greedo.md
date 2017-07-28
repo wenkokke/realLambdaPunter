@@ -15,10 +15,10 @@ import LambdaPunter.Tortoise (mkScoreMap)
 greedo :: Punter
 greedo graph scoringData myId = go
   where
-    go :: Game -> LegalMoves -> IO Edge
+    go :: Game -> LegalMoves -> IO River
     go game legalMoves = return . fst . maximumBy (compare `on` snd) $ do
-      edge <- S.toList legalMoves
-      let scores  = mkScoreMap graph scoringData (claimEdge myId edge game)
+      river <- S.toList legalMoves
+      let scores  = mkScoreMap graph scoringData (claimRiver myId river game)
       let myScore = scores M.! myId
-      return (edge, myScore)
+      return (river, myScore)
 ```

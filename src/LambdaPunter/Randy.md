@@ -15,7 +15,7 @@ randy _ _ _ _ legalMoves = randomElem legalMoves
 ```
 
 ```haskell
-randomElem :: LegalMoves -> IO Edge
+randomElem :: LegalMoves -> IO River
 randomElem xs = (`S.elemAt` xs) <$> randomRIO (0, S.size xs - 1)
 -- randomElem xs = (S.toList xs !!) <$> randomRIO (0, S.size xs - 1)
 ```

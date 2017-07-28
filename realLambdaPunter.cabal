@@ -17,7 +17,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     LambdaPunter
   other-modules:       LambdaPunter.TH
-                     , LambdaPunter.Graph
+                     , LambdaPunter.Map
                      , LambdaPunter.Score
                      , LambdaPunter.Base
                      , LambdaPunter.Randy

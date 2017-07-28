@@ -13,7 +13,7 @@ module LambdaPunter.Base
   ,Msg(..)
   ,PunterException(..)
   ,runPunter
-  ,claimEdge
+  ,claimRiver
   ,module X
   ) where
 ```
@@ -36,22 +36,22 @@ import Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.IO as T
 import LambdaPunter.TH (dropFirstWord)
-import LambdaPunter.Graph as X
+import LambdaPunter.Map as X
 import LambdaPunter.Score as X
 import System.IO
 ```
 
 ```haskell
 import qualified Data.IntMap as M
-import LambdaPunter.Graph
+import LambdaPunter.Map
 ```
 
 Representing punters and the game state
 ---
 
 ```haskell
-type Game = M.IntMap [Edge]
-type LegalMoves = S.Set Edge
+type Game = M.IntMap [River]
+type LegalMoves = S.Set River
 ```
 
 ```haskell
@@ -59,7 +59,7 @@ type PunterId = Int
 ```
 
 ```haskell
-type Punter = Graph -> ScoringData -> PunterId -> Game -> LegalMoves -> IO Edge
+type Punter = Map -> ScoringData -> PunterId -> Game -> LegalMoves -> IO River
 ```
 
 Representing game modes and the setup
@@ -90,8 +90,8 @@ Representing moves
 ```haskell
 data Move
   = Claim { movePunter :: PunterId
-          , moveSource :: NodeId
-          , moveTarget :: NodeId
+          , moveSource :: SiteId
+          , moveTarget :: SiteId
           }
   | Pass  { passPunter :: PunterId
           }
@@ -146,8 +146,8 @@ runPunter punter hdl = do
   -- receive graph
   msg <- BS.hGetLine hdl
   let
-    graph       = wrappedGraph $ decodeJSON msg
-    legalMoves  = S.fromList $ graphEdges graph
+    graph       = wrappedMap $ decodeJSON msg
+    legalMoves  = S.fromList $ graphRivers graph
     scoringData = mkScoringData graph
     realPunter  = punter graph scoringData punterId
     initGame    = foldr (\punterId -> M.insert punterId []) M.empty [0..numPunters - 1]
@@ -160,11 +160,11 @@ runPunter punter hdl = do
       case decodeJSON msg of
         Move moves -> do
           let game'  = foldr (\m f -> runMove m . f) id moves game
-          let legalMoves' = S.difference legalMoves (S.fromList $ mapMaybe moveToEdge moves)
-          Edge source target <- realPunter game' legalMoves'
+          let legalMoves' = S.difference legalMoves (S.fromList $ mapMaybe moveToRiver moves)
+          River source target <- realPunter game' legalMoves'
           let move   = Claim punterId source target
           let game'' = runMove move game'
-          let legalMoves'' = S.delete (Edge source target) legalMoves'
+          let legalMoves'' = S.delete (River source target) legalMoves'
           T.hPutStrLn hdl (encodeToLazyText move)
           punterLoop game'' legalMoves'' hdl
         Stop moves scores -> do
@@ -180,19 +180,19 @@ runPunter punter hdl = do
 ```
 
 ```haskell
-moveToEdge :: Move -> Maybe Edge
-moveToEdge (Claim _ source target) = Just $ Edge source target
-moveToEdge (Pass _) = Nothing
+moveToRiver :: Move -> Maybe River
+moveToRiver (Claim _ source target) = Just $ River source target
+moveToRiver (Pass _) = Nothing
 ```
 
 ```haskell
 runMove :: Move -> Game -> Game
-runMove (Claim punterId source target) = claimEdge punterId (Edge source target)
+runMove (Claim punterId source target) = claimRiver punterId (River source target)
 runMove (Pass _) = id
 
 -- assume: every punter already has an entry in the matrix
-claimEdge :: PunterId -> Edge -> Game -> Game
-claimEdge punterId edge game = M.adjust (edge:) punterId game
+claimRiver :: PunterId -> River -> Game -> Game
+claimRiver punterId river game = M.adjust (river:) punterId game
 ```
 
 ```haskell
